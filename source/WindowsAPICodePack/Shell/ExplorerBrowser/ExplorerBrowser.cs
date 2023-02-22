@@ -14,6 +14,87 @@ using Microsoft.WindowsAPICodePack.Shell.Interop;
 
 namespace Microsoft.WindowsAPICodePack.Controls.WindowsForms
 {
+    [Flags]
+    public enum CMF : uint
+    {
+        NORMAL = 0x00000000,
+        DEFAULTONLY = 0x00000001,
+        VERBSONLY = 0x00000002,
+        EXPLORE = 0x00000004,
+        NOVERBS = 0x00000008,
+        CANRENAME = 0x00000010,
+        NODEFAULT = 0x00000020,
+        INCLUDESTATIC = 0x00000040,
+        EXTENDEDVERBS = 0x00000100,
+        RESERVED = 0xffff0000,
+    }
+    
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct CMINVOKECOMMANDINFO
+    {
+        public int cbSize;
+        public int fMask;
+        public IntPtr hwnd;
+        public string lpVerb;
+        public string lpParameters;
+        public string lpDirectory;
+        public int nShow;
+        public int dwHotKey;
+        public IntPtr hIcon;
+    }
+    
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("000214e4-0000-0000-c000-000000000046")]
+    public interface IContextMenu
+    {
+        [PreserveSig]
+        HResult QueryContextMenu(IntPtr hMenu, uint indexMenu, int idCmdFirst,
+            int idCmdLast, CMF uFlags);
+
+        void InvokeCommand(ref CMINVOKECOMMANDINFO pici);
+
+        [PreserveSig]
+        HResult GetCommandString(int idcmd, uint uflags, int reserved,
+            [MarshalAs(UnmanagedType.LPStr)] StringBuilder commandstring,
+            int cch);
+    }
+    
+    public class MyMenu : IContextMenu
+    {
+        private readonly ExplorerBrowser _shellView;
+
+        public MyMenu()
+        {
+            // _shellView = shellView;
+        }
+
+        public HResult QueryContextMenu(IntPtr hMenu, uint indexMenu, int idCmdFirst, int idCmdLast, CMF uFlags)
+        {
+            // a bit rude, but I don't see any another way...
+            DestroyMenu(hMenu);
+        
+            // create your own menu (or not)
+            // var menu = new ContextMenu();
+            // menu.MenuItems.Add("hello world");
+            // menu.Show(_shellView, _shellView.PointToClient(Cursor.Position));
+            return HResult.Ok;
+        }
+
+        public void InvokeCommand(ref CMINVOKECOMMANDINFO pici) { }
+        public HResult GetCommandString(int idcmd, uint uflags, int reserved, [MarshalAs(UnmanagedType.LPStr)] StringBuilder commandstring, int cch) => HResult.NoImpl;
+
+        [DllImport("user32")]
+        private extern static int DestroyMenu(IntPtr hMenu);
+    }
+    
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("26b79130-4c9f-4424-aefb-52cc63f4d3c6")]
+    public interface IContextMenuModifier
+    {
+        [PreserveSig]
+        HResult GetContextMenu(IContextMenu oldMenu, out IContextMenu menu);
+    }
+    
     /// <summary>
     /// This class is a wrapper around the Windows Explorer Browser control.
     /// </summary>
@@ -23,8 +104,17 @@ namespace Microsoft.WindowsAPICodePack.Controls.WindowsForms
         IExplorerPaneVisibility,
         IExplorerBrowserEvents,
         ICommDlgBrowser3,
-        IMessageFilter
+        IMessageFilter,
+        IContextMenuModifier
     {
+        HResult IContextMenuModifier.GetContextMenu(IContextMenu oldMenu, out IContextMenu menu)
+        {
+            Console.WriteLine(nameof(IContextMenuModifier.GetContextMenu));
+            // menu = oldMenu; // replace the default menu by a custom one
+            menu = new MyMenu(); // replace the default menu by a custom one
+            return HResult.Ok;
+        }
+        
         #region properties
         /// <summary>
         /// Options that control how the ExplorerBrowser navigates
@@ -398,8 +488,7 @@ namespace Microsoft.WindowsAPICodePack.Controls.WindowsForms
             {
                 // Responding to this SID allows us to control the visibility of the 
                 // explorer browser panes
-                ppvObject =
-                    Marshal.GetComInterfaceForObject(this, typeof(IExplorerPaneVisibility));
+                ppvObject = Marshal.GetComInterfaceForObject(this, typeof(IExplorerPaneVisibility));
                 hr = HResult.Ok;
             }
             else if (guidService.CompareTo(new Guid(ExplorerBrowserIIDGuid.ICommDlgBrowser)) == 0)
@@ -428,6 +517,11 @@ namespace Microsoft.WindowsAPICodePack.Controls.WindowsForms
                     ppvObject = IntPtr.Zero;
                     hr = HResult.NoInterface;
                 }
+            }
+            else if (riid == typeof(IContextMenuModifier).GUID)
+            {
+                Console.WriteLine(nameof(IContextMenuModifier));
+                ppvObject = Marshal.GetComInterfaceForObject(this, typeof(IContextMenuModifier));
             }
             else
             {

@@ -52,6 +52,8 @@ namespace MS.WindowsAPICodePack.Internal
         /// </summary>
         NoObject = unchecked((int)0x800401E5),
 
+        NoImpl = unchecked((int)0x80004001),
+        
         /// <summary>
         /// Win32 Error code: ERROR_CANCELLED
         /// </summary>
@@ -70,7 +72,9 @@ namespace MS.WindowsAPICodePack.Internal
         /// <summary>
         /// The requested resources is read-only.
         /// </summary>
-        AccessDenied = unchecked((int)0x80030005)
+        AccessDenied = unchecked((int)0x80030005),
+        
+
     }
 
     /// <summary>
